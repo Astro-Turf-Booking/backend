@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestHandleRegister_Validation(t *testing.T) {
-	h := NewHandler(nil)
+func TestRegister_Validation(t *testing.T) {
+	h := &Handler{DB: nil}
 
 	tests := []struct {
 		name       string
@@ -55,16 +55,16 @@ func TestHandleRegister_Validation(t *testing.T) {
 			wantMsg:    "Password must be at least 6 characters",
 		},
 		{
-			name:       "invalid role",
+			name:       "successful registration defaults to USER without role field",
 			method:     http.MethodPost,
-			body:       `{"email":"test@example.com","full_name":"Test User","password":"password123","role":"ADMIN"}`,
-			wantStatus: http.StatusBadRequest,
-			wantMsg:    "Invalid role. Must be 'USER' or 'PROVIDER'",
+			body:       `{"email":"test@example.com","full_name":"Test User","password":"password123"}`,
+			wantStatus: http.StatusCreated,
+			wantMsg:    "User registered successfully",
 		},
 		{
-			name:       "successful registration without db",
+			name:       "successful registration with role defaults to USER",
 			method:     http.MethodPost,
-			body:       `{"email":"test@example.com","full_name":"Test User","password":"password123","role":"USER"}`,
+			body:       `{"email":"test@example.com","full_name":"Test User","password":"password123","role":"PROVIDER"}`,
 			wantStatus: http.StatusCreated,
 			wantMsg:    "User registered successfully",
 		},
@@ -75,7 +75,7 @@ func TestHandleRegister_Validation(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/register", bytes.NewBufferString(tt.body))
 			rr := httptest.NewRecorder()
 
-			h.HandleRegister(rr, req)
+			h.Register(rr, req)
 
 			if rr.Code != tt.wantStatus {
 				t.Fatalf("expected status %d, got %d (body: %s)", tt.wantStatus, rr.Code, rr.Body.String())
@@ -102,13 +102,25 @@ func TestHandleRegister_Validation(t *testing.T) {
 				if !foundCookie {
 					t.Error("expected auth cookie 'token' to be set")
 				}
+
+				if data, ok := resp["data"].(map[string]any); ok {
+					if user, ok := data["user"].(map[string]any); ok {
+						if role, ok := user["role"].(string); !ok || role != "USER" {
+							t.Errorf("expected user role to be 'USER', got %v", user["role"])
+						}
+					} else {
+						t.Error("expected user in response data")
+					}
+				} else {
+					t.Error("expected data in response")
+				}
 			}
 		})
 	}
 }
 
-func TestHandleLogin_Validation(t *testing.T) {
-	h := NewHandler(nil)
+func TestLogin_Validation(t *testing.T) {
+	h := &Handler{DB: nil}
 
 	tests := []struct {
 		name       string
@@ -159,7 +171,7 @@ func TestHandleLogin_Validation(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/login", bytes.NewBufferString(tt.body))
 			rr := httptest.NewRecorder()
 
-			h.HandleLogin(rr, req)
+			h.Login(rr, req)
 
 			if rr.Code != tt.wantStatus {
 				t.Fatalf("expected status %d, got %d (body: %s)", tt.wantStatus, rr.Code, rr.Body.String())
@@ -177,14 +189,14 @@ func TestHandleLogin_Validation(t *testing.T) {
 	}
 }
 
-func TestHandleLogout(t *testing.T) {
-	h := NewHandler(nil)
+func TestLogout(t *testing.T) {
+	h := &Handler{DB: nil}
 
 	t.Run("wrong method GET", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/logout", nil)
 		rr := httptest.NewRecorder()
 
-		h.HandleLogout(rr, req)
+		h.Logout(rr, req)
 
 		if rr.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, rr.Code)
@@ -195,7 +207,7 @@ func TestHandleLogout(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/logout", nil)
 		rr := httptest.NewRecorder()
 
-		h.HandleLogout(rr, req)
+		h.Logout(rr, req)
 
 		if rr.Code != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)

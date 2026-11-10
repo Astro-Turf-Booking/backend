@@ -73,14 +73,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := req.Role
-	if role == "" {
-		role = models.RoleUser
-	} else if role != models.RoleUser && role != models.RoleProvider {
-		utils.RespondError(w, http.StatusBadRequest, "Invalid role. Must be 'USER' or 'PROVIDER'")
-		return
-	}
-
 	if h.DB != nil {
 		var existingUser models.User
 		if err := h.DB.Where("email = ?", email).First(&existingUser).Error; err == nil {
@@ -116,7 +108,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		FullName:    fullName,
 		Password:    hashedPassword,
 		PhoneNumber: phoneNumber,
-		Role:        role,
+		Role:        models.RoleUser,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
